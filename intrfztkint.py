@@ -4,6 +4,8 @@ Created on Wed May 18 16:04:13 2022
 
 @author: Ivan
 """
+from Modelo import *
+from threading import *
 
 from cgitb import text
 from distutils import command
@@ -16,37 +18,20 @@ import cv2
 import imutils
 import time
 import numpy as np
-from keras.models import load_model
+
 from statistics import mode
-from utils.datasets import get_labels
+
 from utils.inference import detect_faces
 from utils.inference import draw_text
 from utils.inference import draw_bounding_box
 from utils.inference import apply_offsets
 from utils.inference import load_detection_model
 from utils.preprocessor import preprocess_input
+#from mod import *
 
 import tkinter
 import customtkinter
 
-
-# parameters for loading data and images
-emotion_model_path = './models/emotion_model.hdf5'
-emotion_labels = get_labels('fer2013')
-
-# hyper-parameters for bounding boxes shape
-window_frame = 10
-emotion_offsets = (20, 40)
-
-# loading model
-face_cascade = cv2.CascadeClassifier('./models/haarcascade_frontalface_default.xml')
-emotion_classifier = load_model(emotion_model_path)
-
-# getting input model shapes for inference
-emotion_target_size = emotion_classifier.input_shape[1:3]
-
-# starting lists for calculating modes
-emotion_window = []
 
 # Proceso para el contador
 proceso=0
@@ -54,11 +39,20 @@ proceso=0
 # Guardado de datos
 f = open("SaveEmotions.csv","w+")
 
+#cornometro
+running = False
+h, m, s= 0, 0, 0
 
 def iniciar_camara():
     global cap
     cap = cv2.VideoCapture(0)
     visualizar()
+    global running
+    if not running:
+        iniciar()
+        running = True
+        
+    threading()
     
 def elegir_visualizar_video():
     global cap
@@ -190,36 +184,66 @@ def deteccion_facilal(frame):
     return frame
 
 # Método para iniciar el contador
-def iniciar(h=0, m=0, s=0):
-    global proceso
+
+def iniciar():
+    global  h,m,s
+    #global proceso
     #Verificamos si los segundos y los minutos son mayores a 60
     #Verificamos si las horas son mayores a 24
-    if s >= 60:
-        s=0
-        m=m+1
-        if m >= 60:
-            m=0
-            h=h+1
-            if h >= 24:
-                h=0
-    #etiqueta que muestra el cronometro en pantalla
-    time['text'] = str(h)+":"+str(m)+":"+str(s)
-    # iniciamos la cuenta progresiva de los segundos
-    proceso=time.after(2000, iniciar, (h), (m), (s+1))
+    s += 1
+    if s == 60:
+        m += 1
+        s = 0
+    if m == 60:
+        h += 1
+        m = 0
+    
+    hours_string = f'{h}' if h > 9 else f'0{h}'
+    minutes_string = f'{m}' if m > 9 else f'0{m}'
+    seconds_string = f'{s}' if s > 9 else f'0{s}'
+    
+    time.config(text=hours_string + ':' + minutes_string + ':' + seconds_string)
+    #time['text'] = str(h)+":"+str(m)+":"+str(s)
+    global update_time
+    update_time=time.after(1000, iniciar)
             
 def finalizar():
     
     parar()
+    
     lblVideo.image = ""
     lblInfoVideoPath.configure(text="")
     btnIniciar.configure(state=tkinter.NORMAL)
     btnVisualizar.configure(state=tkinter.NORMAL)
     cap.release()
+    cv2.destroyAllWindows()
     
 # Método para detener el contador
 def parar():
-    global proceso
-    time.after_cancel(proceso)
+    global update_time
+    time.after_cancel(update_time)
+    reset()
+    
+#def close():
+    
+    
+ # reset function
+def reset():
+     global running
+     if running:
+         # cancel updating of time using after_cancel()
+         time.after_cancel(update_time)
+         running = False
+     # set variables back to zero
+     global hours, minutes, seconds
+     hours, minutes, seconds = 0, 0, 0   
+     # set label back to zero
+     time.config(text='00:00:00')
+     
+def threading():
+	# Call work function
+	t1=Thread(target=close)
+	t1.start()
 
 cap = None
 root = customtkinter.CTk()
@@ -240,9 +264,12 @@ btnIniciar.grid(column=0, row=1, pady= 10)
 btnVisualizar = customtkinter.CTkButton(root, text="Elegir y visualizar video", width=20, text_font=("italic"), text_color="black", fg_color='#008000', command=elegir_visualizar_video)
 btnVisualizar.grid(column=1, row=1, padx= 10, pady= 5, columnspan=4)
 
-btnFinalizar = customtkinter.CTkButton(root, text="Finalizar", width=20, text_font=("italic"),fg_color='#008000',text_color="black", command=finalizar)
-btnFinalizar.grid(column=0, row=4, columnspan=2, pady=10)
+btnFinalizar = customtkinter.CTkButton(root, text="Clean", width=20, text_font=("italic"),fg_color='#008000',text_color="black", command=finalizar)
+btnFinalizar.grid(column=0, row=4, pady= 10)
 
+
+quit_button = customtkinter.CTkButton(text='Quit', width=20,text_font=("italic"),fg_color='#008000',text_color="black", command=root.destroy)
+quit_button.grid(column=1, row=4, pady= 10)
 
 
 lblVideo = customtkinter.CTkLabel(root, text="")
@@ -262,7 +289,7 @@ listBox.configure(bg='#008000', fg='#000000')
 
 # Creación Label del contador
 #text_var = tkinter.StringVar(value="")
-time = customtkinter.CTkLabel(root, text_font=("18"), text="", text_color="green", width=20)
+time = customtkinter.CTkLabel(root, text_font=("18"), text="00:00:00", text_color="green", width=20)
 time.place(x=850, y=37)
 #time.configure(bg='#008B8B')
 
