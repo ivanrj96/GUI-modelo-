@@ -4,12 +4,12 @@ Created on Wed May 18 16:04:13 2022
 
 @author: Ivan
 """
+
+
+
 from Modelo import *
 from threading import *
 
-from cgitb import text
-from distutils import command
-#from msilib.schema import ListBox
 from tkinter import *
 from tkinter import filedialog
 from PIL import Image
@@ -21,20 +21,18 @@ import numpy as np
 
 from statistics import mode
 
-from utils.inference import detect_faces
 from utils.inference import draw_text
 from utils.inference import draw_bounding_box
 from utils.inference import apply_offsets
-from utils.inference import load_detection_model
 from utils.preprocessor import preprocess_input
-#from mod import *
+
 
 import tkinter
 import customtkinter
 
 
 # Proceso para el contador
-proceso=0
+actualizar_tiempo=0
 
 # Guardado de datos
 f = open("SaveEmotions.csv","w+")
@@ -51,8 +49,9 @@ def iniciar_camara():
     if not running:
         iniciar()
         running = True
+    
+    reset()
         
-    threading()
     
 def elegir_visualizar_video():
     global cap
@@ -83,7 +82,8 @@ def elegir_visualizar_video():
         lblInfoVideoPath.configure(text=pathInputVideo)
         cap = cv2.VideoCapture(path_video)
         visualizar()
-    
+        reset()
+
 def visualizar():
     global cap
     ret, frame = cap.read()
@@ -103,6 +103,8 @@ def visualizar():
         
         cap.release()
         cv2.destroyAllWindows()
+        
+
 
 # Metodo para detectar la expresion
 def deteccion_facilal(frame):
@@ -147,28 +149,28 @@ def deteccion_facilal(frame):
             AngerCounter += 1
             #print("Times Anger detected: ",  AngerCounter)
             f.write(" Numero de eventos Enojo: %d\r\n " % AngerCounter)
-            listBox.insert(0," Numero de eventos Enojo: %d\r\n " % AngerCounter, proceso)
+            listBox.insert(0," Numero de eventos Enojo: %d\r\n " % AngerCounter, actualizar_tiempo)
             
         elif emotion_text == 'sad':
             color = emotion_probability * np.asarray((0, 0, 255))
             SadCounter += 1
             #print("Times Sad detected", SadCounter)
             f.write(" Numero de eventos Triste: %d\r\n " % AngerCounter)
-            listBox.insert(0," Numero de eventos Triste: %d\r\n " % AngerCounter, proceso)
+            listBox.insert(0," Numero de eventos Triste: %d\r\n " % AngerCounter, actualizar_tiempo)
             
         elif emotion_text == 'happy':
             color = emotion_probability * np.asarray((255, 255, 0))
             HappyCounter += 1
             #print("Times Happiness detected",HappyCounter)
             f.write(" Numero de eventos Felicidad: %d\r\n " % AngerCounter)
-            listBox.insert(0," Numero de eventos Felicidad: %d\r\n " % AngerCounter, proceso)
-            
+            listBox.insert(0," Numero de eventos Felicidad: %d\r\n " % AngerCounter, actualizar_tiempo)
+           
         elif emotion_text == 'surprise':
             color = emotion_probability * np.asarray((0, 255, 255))
             SurpriceCounter += 1
             #print("Times surprice detected", SurpriceCounter)
             f.write(" Numero de eventos Sorpresa: %d\r\n " % AngerCounter)
-            listBox.insert(0," Numero de eventos Sorpresa: %d\r\n " % AngerCounter, proceso)
+            listBox.insert(0," Numero de eventos Sorpresa: %d\r\n " % AngerCounter, actualizar_tiempo)
         else:
             color = emotion_probability * np.asarray((0, 255, 0))
 
@@ -187,9 +189,8 @@ def deteccion_facilal(frame):
 
 def iniciar():
     global  h,m,s
-    #global proceso
-    #Verificamos si los segundos y los minutos son mayores a 60
-    #Verificamos si las horas son mayores a 24
+  
+    #Se le suma 1 al segundo y minuto cuando son iguales a 60
     s += 1
     if s == 60:
         m += 1
@@ -197,15 +198,17 @@ def iniciar():
     if m == 60:
         h += 1
         m = 0
-    
+        
+    #Cambia la etiqueta si h, m y s son mayores a nueve, de lo contrario
+    #La etiqueta deja el numero (o los numeros) en cero.
     hours_string = f'{h}' if h > 9 else f'0{h}'
     minutes_string = f'{m}' if m > 9 else f'0{m}'
     seconds_string = f'{s}' if s > 9 else f'0{s}'
     
     time.config(text=hours_string + ':' + minutes_string + ':' + seconds_string)
-    #time['text'] = str(h)+":"+str(m)+":"+str(s)
-    global update_time
-    update_time=time.after(1000, iniciar)
+
+    global actualizar_tiempo
+    actualizar_tiempo=time.after(1000, iniciar)
             
 def finalizar():
     
@@ -217,22 +220,22 @@ def finalizar():
     btnVisualizar.configure(state=tkinter.NORMAL)
     cap.release()
     cv2.destroyAllWindows()
+    reset()
     
 # Método para detener el contador
 def parar():
-    global update_time
-    time.after_cancel(update_time)
-    reset()
+    global actualizar_tiempo
+    time.after_cancel(actualizar_tiempo)
     
-#def close():
+
     
     
- # reset function
+ # reinicar contador
 def reset():
      global running
      if running:
          # cancel updating of time using after_cancel()
-         time.after_cancel(update_time)
+         time.after_cancel(actualizar_tiempo)
          running = False
      # set variables back to zero
      global hours, minutes, seconds
@@ -242,34 +245,43 @@ def reset():
      
 def threading():
 	# Call work function
-	t1=Thread(target=close)
+	t1=Thread(target=finalizar)
 	t1.start()
 
 cap = None
 root = customtkinter.CTk()
 root.title('Detector')
 
+# Creación de ListBox para visualizar los eventos detectados
+listBox = Listbox(root, font=("italic","12"))
+listBox.insert(0,"")
+listBox.place(width=250, height=565, x=850, y=84)
+listBox.configure(bg='#008000', fg='#000000')
+
 customtkinter.set_appearance_mode("dark")  # Modes: system (default), light, dark
 customtkinter.set_default_color_theme("green")  # Themes: blue (default), dark-blue, green
 
 root.geometry("720x480")
 
-lblInfo1 = customtkinter.CTkLabel(root, text="Facial Expression Detection", text_color="green", text_font=("italic","14"))
-lblInfo1.grid(column=0, row=0, columnspan=2)
-#lblInfo1.configure(bg='#008B8B')
+#frame = customtkinter.CTkFrame(root, width=250, height=100, corner_radius=10)
+#frame.grid(padx=15, pady=15)
 
-btnIniciar = customtkinter.CTkButton(root, text="Iniciar camara", width=20, text_font=("italic"), text_color="black", fg_color='#008000', command=iniciar_camara)
+lblInfo1 = customtkinter.CTkLabel(root, text="Facial Expression Detection", text_color="#008000", text_font=("italic","14"))
+lblInfo1.grid(column=0, row=0, columnspan=2)
+
+
+btnIniciar = customtkinter.CTkButton(root, text="Start camera", width=20, text_font=("italic"), text_color="black", fg_color='#008000', command=iniciar_camara)
 btnIniciar.grid(column=0, row=1, pady= 10)
 
-btnVisualizar = customtkinter.CTkButton(root, text="Elegir y visualizar video", width=20, text_font=("italic"), text_color="black", fg_color='#008000', command=elegir_visualizar_video)
+btnVisualizar = customtkinter.CTkButton(root, text="Visualize video", width=20, text_font=("italic"), text_color="black", fg_color='#008000', command=elegir_visualizar_video)
 btnVisualizar.grid(column=1, row=1, padx= 10, pady= 5, columnspan=4)
 
 btnFinalizar = customtkinter.CTkButton(root, text="Clean", width=20, text_font=("italic"),fg_color='#008000',text_color="black", command=finalizar)
-btnFinalizar.grid(column=0, row=4, pady= 10)
+btnFinalizar.grid(column=0, row=4, pady= 10, columnspan=2 )
 
 
-quit_button = customtkinter.CTkButton(text='Quit', width=20,text_font=("italic"),fg_color='#008000',text_color="black", command=root.destroy)
-quit_button.grid(column=1, row=4, pady= 10)
+quit_button = customtkinter.CTkButton(text='Quit', width=20,text_font=("italic"),fg_color='red',text_color="black", command=root.destroy)
+quit_button.grid(column=0, row=5, pady= 10, columnspan=2)
 
 
 lblVideo = customtkinter.CTkLabel(root, text="")
@@ -278,7 +290,7 @@ lblVideo.grid(column=0, row=3, columnspan=2)
 #lblInfo1 = customtkinter.CTkLabel(root, text="Video de entrada:")
 #lblInfo1.grid(column=0, row=1)
 
-lblInfoVideoPath = customtkinter.CTkLabel(root, text="Aún no se ha seleccionado un video", text_color="green", width=20)
+lblInfoVideoPath = customtkinter.CTkLabel(root, text=" ", text_color="green", width=20)
 lblInfoVideoPath.grid(column=0, row=2, columnspan=3, padx=40)
 
 # Creación de ListBox para visualizar los eventos detectados
@@ -288,9 +300,11 @@ listBox.place(width=250, height=565, x=850, y=84)
 listBox.configure(bg='#008000', fg='#000000')
 
 # Creación Label del contador
-#text_var = tkinter.StringVar(value="")
+
 time = customtkinter.CTkLabel(root, text_font=("18"), text="00:00:00", text_color="green", width=20)
 time.place(x=850, y=37)
-#time.configure(bg='#008B8B')
+
+
 
 root.mainloop()
+#exit(0)
